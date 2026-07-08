@@ -97,9 +97,15 @@ app.post('/api/gateway-auth', async (req, res) => {
     const envelope = buildRitoEnvelope(0x03, rsaEncKey, iv, ciphertext, tag);
 
     // 5. POST to gateway
-    const rawResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, region, 3);
-    if (!rawResponse) {
-      return res.status(502).json({ error: 'Gateway returned non-200' });
+    let rawResponse;
+    try {
+      rawResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, region, 3);
+    } catch (gwErr) {
+      return res.status(502).json({
+        error: gwErr.message,
+        gateway_status: gwErr.gatewayStatus || 0,
+        gateway_body: gwErr.gatewayBody || '',
+      });
     }
 
     // 6. Decrypt response
@@ -176,9 +182,15 @@ app.post('/api/gateway-access', async (req, res) => {
       return res.status(400).json({ error: 'Invalid region' });
     }
 
-    const accessResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, gwRegion, 4);
-    if (!accessResponse) {
-      return res.status(502).json({ error: 'Gateway access returned non-200' });
+    let accessResponse;
+    try {
+      accessResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, gwRegion, 4);
+    } catch (gwErr) {
+      return res.status(502).json({
+        error: gwErr.message,
+        gateway_status: gwErr.gatewayStatus || 0,
+        gateway_body: gwErr.gatewayBody || '',
+      });
     }
 
     res.json({
@@ -228,9 +240,15 @@ app.post('/api/gateway-heartbeat', async (req, res) => {
     g_sessions.set(auth_response_b64, { aesKey, iv, ts: Date.now() });
 
     const gwRegion = region || 'na';
-    const hbResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, gwRegion, 7);
-    if (!hbResponse) {
-      return res.status(502).json({ error: 'Gateway heartbeat returned non-200' });
+    let hbResponse;
+    try {
+      hbResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, gwRegion, 7);
+    } catch (gwErr) {
+      return res.status(502).json({
+        error: gwErr.message,
+        gateway_status: gwErr.gatewayStatus || 0,
+        gateway_body: gwErr.gatewayBody || '',
+      });
     }
 
     // Parse ALL envelopes from gateway response (may include Type 8 modules)

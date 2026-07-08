@@ -82,10 +82,18 @@ export async function postToGateway(envelope, jwt, entToken, idJwt, puuid, regio
     const body = Buffer.from(await resp.arrayBuffer());
     console.log(`[GW] HTTP ${resp.status} body=${body.length}B`);
     if (resp.status === 200) return body;
-    console.log(`[GW] HTTP ${resp.status} FAILED — body=${body.toString('utf8').substring(0, 200)}`);
-    return null;
+    const bodyText = body.toString('utf8').substring(0, 300);
+    console.log(`[GW] HTTP ${resp.status} FAILED — body=${bodyText}`);
+    const err = new Error('Gateway returned non-200');
+    err.gatewayStatus = resp.status;
+    err.gatewayBody = bodyText;
+    throw err;
   } catch (e) {
+    if (e.gatewayStatus) throw e;
     console.log(`[GW] Network error:`, e.message);
-    return null;
+    const err = new Error('Gateway network error');
+    err.gatewayStatus = 0;
+    err.gatewayBody = e.message;
+    throw err;
   }
 }
