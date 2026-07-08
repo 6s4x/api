@@ -1,0 +1,64 @@
+// Embedded RSA-2048 Private Key (PKCS#1 PEM) — matches VGW_RSA_PRIV_PEM
+export const CLIENT_PRIVATE_KEY_PEM = `-----BEGIN RSA PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDF4TUhjNTJos4Z
+I0ZblpZbQTy17d8l8F/wFiKZqmb8fr1g0GXb1kJJ/Se3LLo8ypdwRcaKbk18OM
+noJZr3Lr4EbX8qk1ZgF7eovDe75l2Dgt2SRUA1aJI8Bxoj8wilWydWO97vHO4e
+TVkCWKXeFoDavYLSYEgdfgQgmjM2haT0zg7OxEdY2YqHiJyMdMmgT7m1f8PVE2
+AKY+cpUZL7jRxfpxdapfQjW/x4hXaTq4f17pS3xpJVB5XTW6lrYqrVZiOwPobD
+1IzcL3zS0/Vxe+qOY4o6q/XYPOjyfAFWvwxu4Lzpcge1P0204UHiiAXb7nke0
+Iv49QZ1/RL90YztzvjpAgMBAAECggEASrHErwnspsJkXtvQarEwx3icNKZ6heUz
+KbsJS40lu+kRjnKMCIxb0HcVn1DsahclTBWiqM2TRTFgkddkJCtKQfydNJKSV8
+qMIs8NkMmYAhULk3O9lYuIK82YgfpzCIwckLIf6I24msqirz6MOgWvlSJVOBlt
+D2jqoO3kKBARoPBfUlQz5d3CqN5PM0ArpIUAy+3BosrEdpMv5/p5XZ4LG7/8Xi
+fQhdT2AN34pCTzG1Wsv7fVh2wOLWjBLe9pAg1ydM721agOIqgmv8vEP8GSrp06
+mqxlFxXWxMWfNjL7g8V0AbE39Fj/mwlBxXU0mkgNyzAfGXkRAHbdPT6B7A4nkw
+KBgQDXMyRyog3u+YckHdo+qvPK4VgvdIMaTeyJ3upF72ly/W/uboXhxznMb1N2
+WmfYCy7KclUEfIRwfBqbM4SAKCnL6ratzd6TbR7Jg4dqdZHhki0pnHWvcak3YE
++cET5gOW5HwKUeiXHbuSkAvvKGDpFGXYb2nd9Bq6s9Rwy+E/ThHwKBgQDrZWzX
+wCNe7Z5f/SbtnIc+Ak6mEntdxtwJmPakKcRrVSJicQ0/FV9Xn/mCfcjLRQY60
+I8vCFH+8FoWRw2OnC1WewjTlrt2XbFXo/E5cI0T1Vm63GJfDjrDKW9QCz7Eh5
+olPQdnGnWYJbGSTEykTPN61qBbCt/ERHTIreCIzum89wKBgQC/4fYp0J2j7BK3
+/XZQUpY23F+JUNZlaf3zoTQ7T5Iy2hAoBZyTCNVcmBdPfKUDWlVKZk+wRGbC9
+aWzpWgL7cP28z4YE2zW/4FoJUNlhZeiDnj+lWfKHArKObJCco2vtwXCLOAOLne
+7d4o8BAazyeF3YIWq+HHNWIjDhsqx4ZGD+QKBgElSuIqj4OCq55BCzKNrBH1+
+Pn1geGkHjna23OzZzcMZK7K6QEQMJjynKhNJlwgqIfykBlXCI7hjqcwSqdhoMX
+8kp+UwqIgAO0NvX65irq8k3+RizYmKZydveqrWNeEF1DARSIMHLOYNp7hIZ/8t
+sRHsVNrHEliSckYoUy6KNSiVAoGAV5ZzRU0OCI06XZlW7SQk63JAcO+OZCzfiU
+jjQYyIf93e70GB+LdCbLvwreP/t627bIXH5955emiDXHsHlalYZ7ChFPI2edmwY
+UKUvxmnO042IrTBewT9vKyAz7rLG/WPnpdS6aTwkUBnupzrLSi6Qx6o3OFmLA/
+lXEe87Kh+H+A=
+-----END RSA PRIVATE KEY-----`;
+
+// Client RSA public key (SPKI base64, no PEM headers) — matches VGW_CLIENT_PUBKEY
+export const CLIENT_PUBKEY_B64 =
+  "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxeE1IYzUyaLOGSNGW5aW" +
+  "W0E8te3fJfBf8BYimapm/H69YNBl29ZCSf0ntyy6PMqXcEXGim5NfDjJ6CWa9y6+" +
+  "BG1/KpNWYBe3qLw3u+Zdg4LdkkVANWiSPAcaI/MIpVsnVjve7xzuHk1ZAlil3haA" +
+  "2r2C0mBIHX4EIJozaFpM9M4OzsRHWNmKh4icjHTJoE+5tX/D1RNgCmPnKVGS+40c" +
+  "X6cXWqX0I1v8eIV2k6uH9e6Ut8aSVQeV01upq2Kq1WYjsD6Gw9SM3C980tP1cXvq" +
+  "jmOKOqv12Dzo8nwBVr8MbuC86XIHtT9NtOFB4ogF2+55HtCL+PUGdf0S/dGM7c74" +
+  "6QIDAQAB";
+
+// Riot Vanguard Gateway Public Key (RSA-2048 SPKI PEM)
+export const RIOT_PUBKEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAz7Vh5LOgV9FxsyeXlvP6
+OIfD0BFDv65A4wG6pgKO5EbJ6zSxsnU/fkFJeSjE8hJxX2CeEV9XODahl2ofF/jf
+Tv2GhQIJt7ePFT6s4M6ZmDiU/FC5nlJREA3FmQy7VYzPhCy0tLJOaFtZSgi3Scx2
+az5AJEPP/XKyphY0hF1UFw8dUgVa/NQvXZtgTntt+8WRcBwDcryKsQIepK4u6xBLY
+dhR+U6zuQ3KcudI3/Ov4glRYem/XjtGBpGlPLdxbT60tPthcBcWDPWbza9FdrrhhR
+zNR3bFxreqQW2j1o+SW55+WoDJ5ZhLsdcoUkJL7Ecex+vrzJD3eI8fiEz2TaWOJw
+IDAQAB
+-----END PUBLIC KEY-----`;
+
+// Region → gateway host mapping
+export const REGION_HOSTS = {
+  na: "na.vg.ac.pvp.net",
+  eu: "eu.vg.ac.pvp.net",
+  eu2: "eu2.vg.ac.pvp.net",
+  br: "br.vg.ac.pvp.net",
+  latam: "latam.vg.ac.pvp.net",
+  kr: "kr.vg.ac.pvp.net",
+  ap: "ap.vg.ac.pvp.net",
+};
+export const GW_PORT = 8443;
+export const GW_PATH = "/v1/vg";
