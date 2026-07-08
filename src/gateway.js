@@ -1,5 +1,5 @@
 import { rsaDecrypt, aesGcmDecrypt } from './crypto.js';
-import { REGION_HOSTS, GW_PORT, GW_PATH } from './keys.js';
+import { REGION_HOSTS } from './keys.js';
 
 function varintBuf(val) {
   const bytes = [];
@@ -60,10 +60,10 @@ export function decryptGatewayResponse(rawResponse, privateKeyPem) {
   }
 }
 
-// Post to gateway
+// Post to gateway — used by emu.exe (not called from API anymore)
 export async function postToGateway(envelope, jwt, entToken, idJwt, puuid, region, vgType) {
   const host = REGION_HOSTS[region] || REGION_HOSTS.na;
-  const url = `https://${host}:${GW_PORT}${GW_PATH}`;
+  const url = `https://${host}:8443/v1/vg`;
   const headers = {
     'Content-Type': 'application/x-protobuf',
     'Accept': '*/*',

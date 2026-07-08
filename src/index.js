@@ -316,6 +316,195 @@ app.post('/api/decrypt-tasks', (req, res) => {
   }
 });
 
+// =============================================================================
+//  DELEGATED GATEWAY ENDPOINTS — emu.exe builds envelope, POSTs to gateway,
+//  then sends raw response back for decryption
+// =============================================================================
+
+// POST /api/build-auth-envelope
+// Builds auth envelope (type=3) without posting to gateway
+// Input: { jwt, puuid, region, ent_token, id_token, sid }
+// Output: { envelope_b64, aes_key_b64, iv_b64 }
+app.post('/api/build-auth-envelope', (req, res) => {
+  try {
+    const { jwt, puuid, region, ent_token, id_token, sid } = req.body;
+    if (!jwt || !puuid || !region) {
+      return res.status(400).json({ error: 'Missing required: jwt, puuid, region' });
+    }
+    if (!REGION_HOSTS[region]) {
+      return res.status(400).json({ error: 'Invalid region', valid: Object.keys(REGION_HOSTS) });
+    }
+
+    const machineId = 'my doc whitelisted hwid 0o0o0o0o0';
+    const gameId = 'com.riotgames.valorant';
+    const proto = encodeAuthRequest(machineId, jwt, CLIENT_PUBKEY_B64, gameId, sid || '');
+
+    const aesKey = randomBytes(32);
+    const { iv, ciphertext, tag } = aesGcmEncrypt(aesKey, proto);
+    const rsaEncKey = rsaEncrypt(RIOT_PUBKEY_PEM, aesKey);
+    const envelope = buildRitoEnvelope(0x03, rsaEncKey, iv, ciphertext, tag);
+
+    console.log('[BUILD-AUTH-ENV] envelope=' + envelope.length + 'B');
+    res.json({
+      envelope_b64: b64Encode(envelope),
+      aes_key_b64: b64Encode(aesKey),
+      iv_b64: b64Encode(iv),
+    });
+  } catch (e) {
+    console.error('[BUILD-AUTH-ENV] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/process-auth-response
+// Decrypts gateway auth response using client private key
+// Input: { raw_response_b64 }
+// Output: { auth_response_b64, server_pubkey_b64, token, decrypted_b64 }
+app.post('/api/process-auth-response', (req, res) => {
+  try {
+    const { raw_response_b64 } = req.body;
+    if (!raw_response_b64) {
+      return res.status(400).json({ error: 'Missing raw_response_b64' });
+    }
+
+    const rawResponse = b64Decode(raw_response_b64);
+    const decrypted = decryptGatewayResponse(rawResponse, CLIENT_PRIVATE_KEY_PEM);
+    if (!decrypted) {
+      return res.status(502).json({ error: 'Failed to decrypt gateway response' });
+    }
+
+    const server_pubkey_b64 = extractServerPubkeyFromDecrypted(decrypted);
+    const token = extractTokenFromDecrypted(decrypted);
+
+    console.log('[PROCESS-AUTH] OK token=' + (token ? token.substring(0, 20) + '...' : 'null'));
+    res.json({
+      auth_response_b64: b64Encode(rawResponse),
+      decrypted_b64: b64Encode(decrypted),
+      server_pubkey_b64,
+      token,
+    });
+  } catch (e) {
+    console.error('[PROCESS-AUTH] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/build-access-envelope
+// Builds access envelope (type=4) from auth response data
+// Input: { server_pubkey_b64, token, region, jwt, ent_token, id_token, puuid }
+// Output: { envelope_b64 }
+app.post('/api/build-access-envelope', (req, res) => {
+  try {
+    const { server_pubkey_b64, token, region, jwt, ent_token, id_token, puuid } = req.body;
+    if (!server_pubkey_b64 || !token || !region) {
+      return res.status(400).json({ error: 'Missing required: server_pubkey_b64, token, region' });
+    }
+    if (!REGION_HOSTS[region]) {
+      return res.status(400).json({ error: 'Invalid region' });
+    }
+
+    const spkiDer = b64Decode(server_pubkey_b64);
+    const serverPubkeyPem = spkiDerToPem(spkiDer);
+    const proto = encodeAccessRequest(token);
+
+    const aesKey = randomBytes(32);
+    const { iv, ciphertext, tag } = aesGcmEncrypt(aesKey, proto);
+    const rsaEncKey = rsaEncrypt(serverPubkeyPem, aesKey);
+    const envelope = buildRitoEnvelope(0x04, rsaEncKey, iv, ciphertext, tag);
+
+    console.log('[BUILD-ACCESS-ENV] envelope=' + envelope.length + 'B');
+    res.json({ envelope_b64: b64Encode(envelope) });
+  } catch (e) {
+    console.error('[BUILD-ACCESS-ENV] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/process-access-response
+// Processes raw gateway access response (just passes through as b64)
+// Input: { raw_response_b64 }
+// Output: { access_response_b64 }
+app.post('/api/process-access-response', (req, res) => {
+  try {
+    const { raw_response_b64 } = req.body;
+    if (!raw_response_b64) {
+      return res.status(400).json({ error: 'Missing raw_response_b64' });
+    }
+    res.json({ access_response_b64: raw_response_b64 });
+  } catch (e) {
+    console.error('[PROCESS-ACCESS] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/build-hb-envelope
+// Builds heartbeat envelope (type=7)
+// Input: { server_pubkey_b64, token, region, jwt, ent_token, id_token, puuid, last_response_b64 }
+// Output: { envelope_b64, aes_key_b64, iv_b64 }
+app.post('/api/build-hb-envelope', (req, res) => {
+  try {
+    const { server_pubkey_b64, token, region, jwt, ent_token, id_token, puuid, last_response_b64 } = req.body;
+    if (!server_pubkey_b64 || !token) {
+      return res.status(400).json({ error: 'Missing required: server_pubkey_b64, token' });
+    }
+
+    const spkiDer = b64Decode(server_pubkey_b64);
+    const serverPubkeyPem = spkiDerToPem(spkiDer);
+
+    const lastRespBuf = last_response_b64 ? b64Decode(last_response_b64) : null;
+    const proto = encodeHeartbeatRequest(token, lastRespBuf);
+
+    const aesKey = randomBytes(32);
+    const { iv, ciphertext, tag } = aesGcmEncrypt(aesKey, proto);
+    const rsaEncKey = rsaEncrypt(serverPubkeyPem, aesKey);
+    const envelope = buildRitoEnvelope(0x07, rsaEncKey, iv, ciphertext, tag);
+
+    console.log('[BUILD-HB-ENV] envelope=' + envelope.length + 'B');
+    res.json({
+      envelope_b64: b64Encode(envelope),
+      aes_key_b64: b64Encode(aesKey),
+      iv_b64: b64Encode(iv),
+    });
+  } catch (e) {
+    console.error('[BUILD-HB-ENV] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/process-hb-response
+// Decrypts gateway heartbeat response and extracts Type 8 modules
+// Input: { raw_response_b64 }
+// Output: { hb_response_b64, hb_decrypted_b64, modules_b64 }
+app.post('/api/process-hb-response', (req, res) => {
+  try {
+    const { raw_response_b64 } = req.body;
+    if (!raw_response_b64) {
+      return res.status(400).json({ error: 'Missing raw_response_b64' });
+    }
+
+    const hbResponse = b64Decode(raw_response_b64);
+    let hbDecrypted = null;
+    const modules = [];
+
+    try {
+      hbDecrypted = decryptGatewayResponse(hbResponse, CLIENT_PRIVATE_KEY_PEM);
+      if (hbDecrypted) {
+        console.log('[PROCESS-HB] Decrypted ' + hbDecrypted.length + 'B');
+      }
+      parseModulesFromResponse(hbResponse, modules);
+    } catch (_) {}
+
+    res.json({
+      hb_response_b64: b64Encode(hbResponse),
+      hb_decrypted_b64: hbDecrypted ? b64Encode(hbDecrypted) : null,
+      modules_b64: modules.length > 0 ? modules : undefined,
+    });
+  } catch (e) {
+    console.error('[PROCESS-HB] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/ticket — build 0x3E9 ticket from access response
 // Input: { access_response_b64 }
 // Output: { ticket_b64 }
