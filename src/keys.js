@@ -61,4 +61,4 @@ export const REGION_HOSTS = {
   ap: "ap.vg.ac.pvp.net",
 };
 export const GW_PORT = 8443;
-export const GW_PATH = "/v1/vg";
+export const GW_PATH = "/vanguard/v1/gateway";

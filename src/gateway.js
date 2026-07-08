@@ -63,7 +63,7 @@ export function decryptGatewayResponse(rawResponse, privateKeyPem) {
 // Post to gateway — used by emu.exe (not called from API anymore)
 export async function postToGateway(envelope, jwt, entToken, idJwt, puuid, region, vgType) {
   const host = REGION_HOSTS[region] || REGION_HOSTS.na;
-  const url = `https://${host}:8443/v1/vg`;
+  const url = `https://${host}:8443/vanguard/v1/gateway`;
   const headers = {
     'Content-Type': 'application/x-protobuf',
     'Accept': '*/*',
