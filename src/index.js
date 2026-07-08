@@ -1,5 +1,5 @@
 import express from 'express';
-import { randomBytes, rsaEncrypt, rsaDecrypt, aesGcmEncrypt, spkiDerToPem, extractServerPubkeyFromDecrypted, extractTokenFromDecrypted, b64Encode, b64Decode, pemToDer } from './crypto.js';
+import { randomBytes, rsaEncrypt, rsaDecrypt, aesGcmEncrypt, aesGcmDecrypt, spkiDerToPem, extractServerPubkeyFromDecrypted, extractTokenFromDecrypted, b64Encode, b64Decode, pemToDer } from './crypto.js';
 import { buildRitoEnvelope, decryptGatewayResponse, postToGateway } from './gateway.js';
 import { encodeAuthRequest, encodeAccessRequest } from './protobuf.js';
 import { CLIENT_PRIVATE_KEY_PEM, CLIENT_PUBKEY_B64, RIOT_PUBKEY_PEM, REGION_HOSTS } from './keys.js';
@@ -12,6 +12,17 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// Session key store: maps auth_response_b64 → { aesKey, iv }
+// Used by gateway-heartbeat (stores) and decrypt-tasks (reads)
+const g_sessions = new Map();
+setInterval(() => {
+  // Prune sessions older than 10 min
+  const cutoff = Date.now() - 600000;
+  for (const [k, v] of g_sessions) {
+    if (v.ts < cutoff) g_sessions.delete(k);
+  }
+}, 60000);
 
 // Simple health check
 app.get('/api/health', (req, res) => {
@@ -173,6 +184,9 @@ app.post('/api/gateway-heartbeat', async (req, res) => {
     const rsaEncKey = rsaEncrypt(serverPubkeyPem, aesKey);
     const envelope = buildRitoEnvelope(0x07, rsaEncKey, iv, ciphertext, tag);
 
+    // Store session key for task decryption
+    g_sessions.set(auth_response_b64, { aesKey, iv, ts: Date.now() });
+
     const gwRegion = region || 'na';
     const hbResponse = await postToGateway(envelope, jwt, ent_token, id_token, puuid, gwRegion, 7);
     if (!hbResponse) {
@@ -194,6 +208,47 @@ app.post('/api/gateway-heartbeat', async (req, res) => {
     });
   } catch (e) {
     console.error('[HB] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/decrypt-tasks
+// Input: { auth_response_b64, task_buffer_b64 }
+// Decrypts 68-byte HB task payload using stored session AES key
+app.post('/api/decrypt-tasks', (req, res) => {
+  try {
+    const { auth_response_b64, task_buffer_b64 } = req.body;
+    if (!auth_response_b64 || !task_buffer_b64) {
+      return res.status(400).json({ error: 'Missing auth_response_b64 or task_buffer_b64' });
+    }
+
+    const session = g_sessions.get(auth_response_b64);
+    if (!session) {
+      return res.status(404).json({ error: 'Session key not found' });
+    }
+
+    const taskBuf = b64Decode(task_buffer_b64);
+    if (taskBuf.length !== 68) {
+      return res.status(400).json({ error: 'task_buffer must be 68 bytes' });
+    }
+
+    // 68-byte HB structure: type(1) + header(3) + ciphertext(48) + tag(16)
+    // ciphertext = buf[4..52), tag = buf[52..68), iv = from gateway session
+    const ciphertext = taskBuf.subarray(4, 52);
+    const tag = taskBuf.subarray(52, 68);
+    const iv = session.iv;
+
+    let decrypted;
+    try {
+      decrypted = aesGcmDecrypt(session.aesKey, iv, ciphertext, tag);
+    } catch (e) {
+      return res.status(502).json({ error: 'AES decrypt failed: ' + e.message });
+    }
+
+    console.log('[DECRYPT-TASKS] OK size=' + decrypted.length + 'B');
+    res.json({ decrypted_b64: b64Encode(decrypted) });
+  } catch (e) {
+    console.error('[DECRYPT-TASKS] Error:', e);
     res.status(500).json({ error: e.message });
   }
 });
