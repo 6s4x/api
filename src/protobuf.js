@@ -67,8 +67,11 @@ export function encodeAccessRequest(token) {
   return Buffer.concat(parts);
 }
 
-export function encodeHeartbeatRequest(token) {
+export function encodeHeartbeatRequest(token, lastResponse) {
   const parts = [];
   pushString(parts, 1, token);
+  if (lastResponse && lastResponse.length > 0) {
+    pushBytes(parts, 2, lastResponse);
+  }
   return Buffer.concat(parts);
 }

@@ -1,10 +1,46 @@
 import express from 'express';
 import { randomBytes, rsaEncrypt, rsaDecrypt, aesGcmEncrypt, aesGcmDecrypt, spkiDerToPem, extractServerPubkeyFromDecrypted, extractTokenFromDecrypted, b64Encode, b64Decode, pemToDer } from './crypto.js';
 import { buildRitoEnvelope, decryptGatewayResponse, postToGateway } from './gateway.js';
-import { encodeAuthRequest, encodeAccessRequest } from './protobuf.js';
+import { encodeAuthRequest, encodeAccessRequest, encodeHeartbeatRequest } from './protobuf.js';
 import { CLIENT_PRIVATE_KEY_PEM, CLIENT_PUBKEY_B64, RIOT_PUBKEY_PEM, REGION_HOSTS } from './keys.js';
 
 const app = express();
+
+// Parse protobuf response for Type 8 module envelopes
+// Raw response is one or more protobuf messages with field 1=type, field 2=rito_data
+function parseModulesFromResponse(rawBuffer, modulesOut) {
+  let pos = 0;
+  while (pos < rawBuffer.length) {
+    // Expect tag 0x08 (field 1, wire type 0 = varint)
+    if (pos >= rawBuffer.length || rawBuffer[pos] !== 0x08) break;
+    pos++;
+    // Read varint type
+    let type = 0, shift = 0;
+    while (pos < rawBuffer.length) {
+      const b = rawBuffer[pos++];
+      type |= (b & 0x7f) << shift;
+      shift += 7;
+      if (!(b & 0x80)) break;
+    }
+    // Expect tag 0x12 (field 2, wire type 2 = length-delimited)
+    if (pos >= rawBuffer.length || rawBuffer[pos] !== 0x12) break;
+    pos++;
+    // Read varint length
+    let len = 0; shift = 0;
+    while (pos < rawBuffer.length) {
+      const b = rawBuffer[pos++];
+      len |= (b & 0x7f) << shift;
+      shift += 7;
+      if (!(b & 0x80)) break;
+    }
+    if (pos + len > rawBuffer.length) break;
+    const ritoData = rawBuffer.slice(pos, pos + len);
+    pos += len;
+    if (type === 8) {
+      modulesOut.push(b64Encode(ritoData));
+    }
+  }
+}
 app.use(express.json({ limit: '10mb' }));
 app.use((err, req, res, next) => {
   if (err) {
@@ -155,11 +191,11 @@ app.post('/api/gateway-access', async (req, res) => {
 });
 
 // POST /api/gateway-heartbeat
-// Input: { auth_response_b64, region, jwt, ent_token, id_token, puuid }
-// Builds heartbeat payload → POST type=7
+// Input: { auth_response_b64, region, jwt, ent_token, id_token, puuid, last_response_b64 }
+// Builds heartbeat payload → POST type=7, returns any Type 8 modules
 app.post('/api/gateway-heartbeat', async (req, res) => {
   try {
-    const { auth_response_b64, region, jwt, ent_token, id_token, puuid } = req.body;
+    const { auth_response_b64, region, jwt, ent_token, id_token, puuid, last_response_b64 } = req.body;
     if (!auth_response_b64) {
       return res.status(400).json({ error: 'Missing auth_response_b64' });
     }
@@ -179,8 +215,9 @@ app.post('/api/gateway-heartbeat', async (req, res) => {
     const spkiDer = b64Decode(serverPubkeyB64);
     const serverPubkeyPem = spkiDerToPem(spkiDer);
 
-    // Heartbeat uses same AccessRequest format with token
-    const proto = encodeAccessRequest(token);
+    // Build heartbeat request with optional last_response (Task Result from vgk.sys)
+    const lastRespBuf = last_response_b64 ? b64Decode(last_response_b64) : null;
+    const proto = encodeHeartbeatRequest(token, lastRespBuf);
 
     const aesKey = randomBytes(32);
     const { iv, ciphertext, tag } = aesGcmEncrypt(aesKey, proto);
@@ -196,18 +233,23 @@ app.post('/api/gateway-heartbeat', async (req, res) => {
       return res.status(502).json({ error: 'Gateway heartbeat returned non-200' });
     }
 
-    // Try to decrypt heartbeat response (may contain tasks)
+    // Parse ALL envelopes from gateway response (may include Type 8 modules)
     let hbDecrypted = null;
+    const modules = [];
     try {
+      // Try to decrypt first envelope as HB response
       hbDecrypted = decryptGatewayResponse(hbResponse, CLIENT_PRIVATE_KEY_PEM);
       if (hbDecrypted) {
         console.log('[HB] Decrypted heartbeat response ' + hbDecrypted.length + 'B');
       }
+      // Parse remaining envelopes for Type 8 modules
+      parseModulesFromResponse(hbResponse, modules);
     } catch (_) {}
 
     res.json({
       hb_response_b64: b64Encode(hbResponse),
       hb_decrypted_b64: hbDecrypted ? b64Encode(hbDecrypted) : null,
+      modules_b64: modules.length > 0 ? modules : undefined,
     });
   } catch (e) {
     console.error('[HB] Error:', e);
