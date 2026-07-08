@@ -7,7 +7,10 @@ import { CLIENT_PRIVATE_KEY_PEM, CLIENT_PUBKEY_B64, RIOT_PUBKEY_PEM, REGION_HOST
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use((err, req, res, next) => {
-  if (err) return res.status(400).json({ error: 'Invalid JSON' });
+  if (err) {
+    console.error('[JSON-PARSE-ERROR]', err.message);
+    return res.status(400).json({ error: 'Invalid JSON', detail: err.message });
+  }
   next();
 });
 
