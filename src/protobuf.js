@@ -14,11 +14,8 @@ function tag(field, wire) {
   return varint((field << 3) | wire);
 }
 
-function pushVarint(acc, val) {
-  acc.push(varint(val));
-}
-
 export function pushString(acc, field, str) {
+  if (!str) return;
   acc.push(tag(field, 2));
   const buf = Buffer.from(str, 'utf8');
   acc.push(varint(buf.length));
@@ -26,39 +23,48 @@ export function pushString(acc, field, str) {
 }
 
 export function pushBytes(acc, field, buf) {
+  if (!buf || buf.length === 0) return;
   acc.push(tag(field, 2));
   acc.push(varint(buf.length));
   acc.push(buf);
 }
 
-export function encodeAuthRequest(machineId, gameToken, clientPubkeyB64, gameId, externalSid) {
+export function encodeAuthRequest(machineId, gameToken, clientPubkeyB64, gameId, externalSid, bootState) {
   const parts = [];
   pushString(parts, 1, machineId);
-  pushBytes(parts, 2, encodeSub2());
+  pushBytes(parts, 2, encodeSubProto(1, 2, "10.0.19045"));
   pushString(parts, 4, gameToken);
   pushString(parts, 5, clientPubkeyB64);
-  pushBytes(parts, 6, encodeVersion(1, 0, 0, 0));
-  pushBytes(parts, 7, encodeVersion(1, 0, 0, 0));
+  pushBytes(parts, 6, encodeVgVersion(1, 18, 3, 77));
+  pushBytes(parts, 7, encodeVgVersion(1, 18, 3, 77));
   pushString(parts, 8, gameId);
-  pushVarint(parts, tag(9, 0));
-  pushVarint(parts, 3);
-  pushString(parts, 13, externalSid);
+  pushInt32(parts, 9, bootState != null ? bootState : 3);
+  if (externalSid) pushString(parts, 13, externalSid);
   return Buffer.concat(parts);
 }
 
-function encodeSub2() {
+function encodeSubProto(a, b, version) {
   const parts = [];
-  pushVarint(parts, tag(1, 0)); pushVarint(parts, 0);
-  pushVarint(parts, tag(2, 0)); pushVarint(parts, 0);
-  pushString(parts, 4, "1.0");
+  pushInt32(parts, 1, a);
+  pushInt32(parts, 2, b);
+  pushString(parts, 4, version);
   return Buffer.concat(parts);
 }
 
-function encodeVersion(a, b, c, d) {
+function encodeVgVersion(a, b, c, d) {
   const parts = [];
-  const set = (f, v) => { pushVarint(parts, tag(f, 0)); pushVarint(parts, v); };
-  set(1, a); set(2, b); set(3, c); set(4, d);
+  pushInt32(parts, 1, a);
+  pushInt32(parts, 2, b);
+  pushInt32(parts, 3, c);
+  pushInt32(parts, 4, d);
   return Buffer.concat(parts);
+}
+
+function pushInt32(acc, field, val) {
+  if (val === 0) return;
+  acc.push(tag(field, 0));
+  let v = val < 0 ? val >>> 0 : val;
+  acc.push(varint(v));
 }
 
 export function encodeAccessRequest(token) {

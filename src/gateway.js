@@ -69,7 +69,7 @@ export async function postToGateway(envelope, jwt, entToken, idJwt, puuid, regio
     'Accept': '*/*',
     'X-VG-1': String(vgType),
     'X-VG-3': '1',
-    'User-Agent': 'vanguard/1.18.3-74+20260623.212037',
+    'User-Agent': 'vanguard/1.18.3-77+20260708.000000',
   };
   if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
   if (entToken) headers['X-Riot-Entitlements-JWT'] = entToken;
@@ -82,7 +82,7 @@ export async function postToGateway(envelope, jwt, entToken, idJwt, puuid, regio
     const body = Buffer.from(await resp.arrayBuffer());
     console.log(`[GW] HTTP ${resp.status} body=${body.length}B`);
     if (resp.status === 200) return body;
-    console.log(`[GW] HTTP ${resp.status} FAILED`);
+    console.log(`[GW] HTTP ${resp.status} FAILED — body=${body.toString('utf8').substring(0, 200)}`);
     return null;
   } catch (e) {
     console.log(`[GW] Network error:`, e.message);
